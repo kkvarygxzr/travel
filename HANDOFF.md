@@ -2,7 +2,18 @@
 
 > **Bahasa kerja: Indonesia.** Agent berikutnya WAJIB merespons user dalam Bahasa Indonesia.
 >
-> ## ✅ STATUS SESI TERAKHIR (2026-08-29, sesi 6 — SSOT BATCH 5 + EKSPOR EXCEL + GABUNG DESTINASI, TUNTAS)
+> ## ✅ STATUS SESI TERAKHIR (2026-08-29, sesi 7 — BATCH 6: UNDO GABUNGAN + KOTA BENGKEL, TUNTAS)
+> **BUG-0142**: (1) merge destinasi kini mencatat `merged_moved` (id dokumen per koleksi) →
+> endpoint baru `POST /api/master/destinations/{id}/unmerge` mengembalikan dokumen tercatat
+> (hanya bila destinasinya masih nama target; sisanya `skipped`), sumber `ops_active=true` +
+> `$unset merged_*`; UI: tombol "Batalkan Gabungan" `md-unmerge-{id}` → panel
+> `md-unmerge-panel-{id}` (jumlah dari `merged_moved_count` di GET /master/destinations) →
+> `md-unmerge-confirm-{id}`. (2) `workshops.city` KERAS via `city_or_400` (create+update),
+> FE `WorkshopFormDialog` → `CitySelect` (wsh-city); rename kota cascade + `used_by_workshops`
+> + kolom Bengkel di Excel. Guard INV-REF-02 → **34 cek**. Gate **HIJAU 46/46**; testing_agent
+> **iteration_99 0 bug** (backend 11/11; suite `backend/tests/backend_test_ssot_batch6.py`).
+>
+> ## Riwayat sesi 6 (2026-08-29 — SSOT batch 5 + ekspor + gabung destinasi)
 > **BUG-0141**: (1) master KOTA baru `cities` (cty_) — `customers.city`/`partners.city` KERAS via
 > `refs.city_or_400` (create+update), quick-add `POST /api/cities`, FE `CitySelect` (cf-city/
 > pf-city), kelola `GET/PATCH /api/master/cities[/{id}]` (rename cascade customers+partners);

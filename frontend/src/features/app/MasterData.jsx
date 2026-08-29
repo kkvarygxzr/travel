@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { MapPin, Landmark, Building2, Loader2, Pencil, Check, X, Power, Merge, FileSpreadsheet } from "lucide-react";
+import { MapPin, Landmark, Building2, Loader2, Pencil, Check, X, Power, Merge, Undo2, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import apiClient from "@/services/apiClient";
 import { Input } from "@/components/ui/input";
@@ -14,13 +14,13 @@ import { LoadingState, ErrorState } from "@/components/shared/DataStates";
 
 function usageLabel(row, kind) {
   if (kind === "pickup") return `${row.used_by_bookings} booking`;
-  if (kind === "city") return `${row.used_by_customers} pelanggan · ${row.used_by_partners} mitra`;
+  if (kind === "city") return `${row.used_by_customers} pelanggan · ${row.used_by_partners} mitra · ${row.used_by_workshops || 0} bengkel`;
   return `${row.used_by_bookings} booking · ${row.used_by_leads} lead · ${row.used_by_quotations || 0} penawaran`;
 }
 
 function totalUsage(row, kind) {
   if (kind === "pickup") return row.used_by_bookings || 0;
-  if (kind === "city") return (row.used_by_customers || 0) + (row.used_by_partners || 0);
+  if (kind === "city") return (row.used_by_customers || 0) + (row.used_by_partners || 0) + (row.used_by_workshops || 0);
   return (row.used_by_bookings || 0) + (row.used_by_leads || 0) + (row.used_by_quotations || 0);
 }
 
@@ -56,10 +56,11 @@ function MergePanel({ row, siblings, busy, onMerge, onClose }) {
   );
 }
 
-function Row({ row, kind, busy, onRename, onToggle, onMerge, mergeTargets }) {
+function Row({ row, kind, busy, onRename, onToggle, onMerge, onUnmerge, mergeTargets }) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [unmerging, setUnmerging] = useState(false);
   const [name, setName] = useState(row.name || "");
   const active = kind === "dest" ? row.ops_active : row.active;
   const merged = kind === "dest" && !!row.merged_into;
@@ -95,6 +96,12 @@ function Row({ row, kind, busy, onRename, onToggle, onMerge, mergeTargets }) {
         )}
       </div>
       {!active && !merged ? <span className="rounded-full bg-[#FF3B30]/10 px-2 py-0.5 text-[11px] font-semibold text-[#A8221A]">Nonaktif</span> : null}
+      {merged ? (
+        <button className="secondary-button !h-8 !px-2.5 !text-[11.5px]" disabled={busy}
+          onClick={() => setUnmerging((v) => !v)} data-testid={`md-unmerge-${row.id}`}>
+          <Undo2 size={12} /> Batalkan Gabungan
+        </button>
+      ) : null}
       {!merged ? (
         <>
           <button className="secondary-button !h-8 !px-2.5 !text-[11.5px]" disabled={busy || editing}
@@ -129,11 +136,26 @@ function Row({ row, kind, busy, onRename, onToggle, onMerge, mergeTargets }) {
           siblings={(mergeTargets || []).filter((s) => s.id !== row.id && !s.merged_into && s.ops_active)}
           onMerge={(src, tgt) => { onMerge(src, tgt); setMerging(false); }} />
       ) : null}
+      {unmerging && merged ? (
+        <div className="w-full rounded-lg border border-[#C9DDF5] bg-[#EFF6FF] px-3 py-2 text-[12px] text-[#12406E]"
+          data-testid={`md-unmerge-panel-${row.id}`}>
+          Kembalikan "<b>{row.name}</b>" sebagai destinasi aktif?{" "}
+          {row.merged_moved_count > 0
+            ? <><b>{row.merged_moved_count} dokumen</b> yang ikut pindah ke "{row.merged_into_name}" akan dikembalikan memakai nama ini (dokumen yang sudah diubah manual setelah gabungan tidak disentuh).</>
+            : <>Tidak ada dokumen yang ikut pindah — baris ini hanya diaktifkan kembali.</>}
+          <div className="mt-1.5 flex gap-2">
+            <button className="primary-button !h-7 !px-3 !text-[11.5px]" disabled={busy}
+              onClick={() => { onUnmerge(row); setUnmerging(false); }} data-testid={`md-unmerge-confirm-${row.id}`}>Ya, Batalkan Gabungan</button>
+            <button className="secondary-button !h-7 !px-3 !text-[11.5px]"
+              onClick={() => setUnmerging(false)} data-testid={`md-unmerge-cancel-${row.id}`}>Batal</button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function Panel({ icon: Icon, title, desc, kind, rows, busy, onRename, onToggle, onMerge, testId }) {
+function Panel({ icon: Icon, title, desc, kind, rows, busy, onRename, onToggle, onMerge, onUnmerge, testId }) {
   return (
     <section className="rounded-[14px] border border-[#EFF0F2] bg-white shadow-sm" data-testid={testId}>
       <div className="border-b border-[#EFF0F2] px-4 py-3">
@@ -144,7 +166,7 @@ function Panel({ icon: Icon, title, desc, kind, rows, busy, onRename, onToggle, 
         <p className="mt-0.5 text-[12px] text-[#6B6B73]">{desc}</p>
       </div>
       <div>
-        {rows.map((r) => <Row key={r.id} row={r} kind={kind} busy={busy} onRename={onRename} onToggle={onToggle} onMerge={onMerge} mergeTargets={rows} />)}
+        {rows.map((r) => <Row key={r.id} row={r} kind={kind} busy={busy} onRename={onRename} onToggle={onToggle} onMerge={onMerge} onUnmerge={onUnmerge} mergeTargets={rows} />)}
         {rows.length === 0 ? <p className="px-4 py-5 text-[12.5px] text-[#8E8E93]">Belum ada data.</p> : null}
       </div>
     </section>
@@ -203,6 +225,11 @@ export default function MasterData() {
     const n = Object.values(data.cascade || {}).reduce((a, b) => a + b, 0);
     return ` · ${n} dokumen pindah ke "${data.target}"`;
   }, `"${row.name}" digabung`);
+  const unmergeDest = (row) => act(async () => {
+    const { data } = await apiClient.post(`/master/destinations/${row.id}/unmerge`);
+    const n = Object.values(data.restored || {}).reduce((a, b) => a + b, 0);
+    return ` · ${n} dokumen kembali${data.skipped ? ` (${data.skipped} dilewati)` : ""}`;
+  }, `Gabungan "${row.name}" dibatalkan`);
   const renameCity = (row, name) => act(async () => {
     const { data } = await apiClient.patch(`/master/cities/${row.id}`, { name });
     const n = Object.values(data.cascade || {}).reduce((a, b) => a + b, 0);
@@ -250,8 +277,8 @@ export default function MasterData() {
           desc="Dipakai field 'Kota' pada pelanggan & mitra. Tambah cepat tersedia langsung di form."
           onRename={renameCity} onToggle={toggleCity} testId="md-city-panel" />
         <Panel icon={Landmark} title="Destinasi (sisi ops)" kind="dest" rows={dests} busy={busy}
-          desc="Dipakai booking, lead CRM, penawaran & form web. Gabung menyatukan destinasi kembar. Konten halaman web dikelola di Konten Web; nonaktif di sini tidak menurunkan halaman publik."
-          onRename={renameDest} onToggle={toggleDest} onMerge={mergeDest} testId="md-dest-panel" />
+          desc="Dipakai booking, lead CRM, penawaran & form web. Gabung menyatukan destinasi kembar (bisa dibatalkan). Konten halaman web dikelola di Konten Web; nonaktif di sini tidak menurunkan halaman publik."
+          onRename={renameDest} onToggle={toggleDest} onMerge={mergeDest} onUnmerge={unmergeDest} testId="md-dest-panel" />
       </div>
     </div>
   );

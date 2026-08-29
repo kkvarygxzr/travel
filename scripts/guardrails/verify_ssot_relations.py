@@ -161,6 +161,20 @@ def static_checks(g: Guard):
     if "/master/cities" not in pk or "/merge" not in pk or "/master/export" not in pk:
         g.add("routers/pickup_points.py: endpoint master kota / gabung destinasi / ekspor Excel "
               "hilang — kelola master tidak lagi satu pintu.")
+    # --- batch 6: undo gabungan + kota bengkel ---
+    g.bump()
+    if "/unmerge" not in pk or "merged_moved" not in pk:
+        g.add("routers/pickup_points.py: endpoint `/unmerge` atau catatan `merged_moved` hilang — "
+              "gabungan destinasi tidak bisa dibatalkan tanpa menyentuh DB.")
+    wsh_src = read(BACKEND / "routers" / "workshops.py")
+    g.bump()
+    if wsh_src.count("city_or_400(") < 2:
+        g.add("routers/workshops.py: `city_or_400` harus dipanggil di create & update — kota "
+              "bengkel kembali teks bebas.")
+    g.bump()
+    if '"workshops"' not in pk or "used_by_workshops" not in pk:
+        g.add("routers/pickup_points.py: cascade rename kota / pemakaian tidak mencakup workshops "
+              "— rename kota meninggalkan bengkel bernama lama.")
 
 
 def runtime_checks(g: Guard, tok: str):

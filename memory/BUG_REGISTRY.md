@@ -27,6 +27,26 @@
 
 ## REGISTRY
 
+### BUG-0142 — Batch 6: gabungan destinasi tak bisa dibatalkan dari UI + kota bengkel masih teks bebas — FIXED 2026-08-29
+- Tanggal       : 2026-08-29 (sesi 7)
+- Fase/Modul    : RC-E batch 6 / Master Data (unmerge), workshops.city
+- Gejala        : (a) merge destinasi (BUG-0141) hanya bisa dibatalkan lewat manipulasi DB —
+                  dan bahkan itu TIDAK bisa mengembalikan dokumen yang ter-cascade (tidak ada
+                  catatan dokumen mana yang pindah); (b) `workshops.city` belum ikut master
+                  `cities` — bengkel "bandung" vs "Bandung" bercabang.
+- Perbaikan     : (a) merge mencatat `merged_moved` (id per koleksi) → endpoint baru
+                  `POST /api/master/destinations/{id}/unmerge` mengembalikan dokumen tercatat
+                  (hanya bila destinasinya masih nama target; selainnya `skipped`), sumber
+                  aktif kembali; UI: tombol "Batalkan Gabungan" pada baris ber-badge
+                  (`md-unmerge-{id}` → panel `md-unmerge-panel-{id}` ber-jumlah
+                  `merged_moved_count` → `md-unmerge-confirm-{id}`); (b) `city_or_400` di
+                  create+update `routers/workshops.py`, FE `WorkshopFormDialog` → `CitySelect`
+                  (wsh-city), rename kota cascade + usage + Excel sheet Kota mencakup bengkel.
+- Regression    : INV-REF-02 → 34 cek (+3 statik). Round-trip teruji manual: merge (1 lead
+                  pindah) → unmerge (1 kembali, 0 skipped) → unmerge ulang 400; kota bengkel
+                  ngawur 400 & 'bandung' → 'Bandung'.
+- Status        : FIXED — gate HIJAU 46/46; testing_agent di sesi ini.
+
 ### BUG-0141 — SSOT batch 5: kota pelanggan/mitra & tipe armada landing teks bebas; tanpa ekspor master; destinasi kembar tak bisa digabung — FIXED 2026-08-29
 - Tanggal       : 2026-08-29 (sesi 6, lanjutan seri RC-E)
 - Fase/Modul    : RC-E batch 5 / customers.city, partners.city, leads.vehicle_type, Master Data

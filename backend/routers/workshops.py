@@ -17,6 +17,7 @@ from db import get_db
 from dependencies import get_current_user, require_role
 from schemas import WorkshopCreate, WorkshopUpdate
 from services.audit import record
+from services.refs import city_or_400
 
 router = APIRouter(prefix="/api", tags=["workshops"])
 MANAGER = require_role("owner", "ops_admin")
@@ -41,7 +42,9 @@ async def create_workshop(body: WorkshopCreate, user=Depends(MANAGER)):
     db = get_db()
     doc = {
         "id": new_id("wsh"), "name": body.name.strip(),
-        "phone": body.phone or "", "address": body.address or "", "city": body.city or "",
+        "phone": body.phone or "", "address": body.address or "",
+        # INV-REF-02 batch 6: kota bengkel = relasi master `cities` (nama kanonik).
+        "city": await city_or_400(db, body.city, field_label="Kota bengkel"),
         "specialties": body.specialties or [], "note": body.note or "",
         "active": True if body.active is None else bool(body.active),
         "created_at": now_iso(),
@@ -59,6 +62,8 @@ async def update_workshop(workshop_id: str, body: WorkshopUpdate, user=Depends(M
     if not rec:
         raise HTTPException(status_code=404, detail="Vendor/bengkel tidak ditemukan")
     updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    if "city" in updates:
+        updates["city"] = await city_or_400(db, updates["city"], field_label="Kota bengkel")
     if updates:
         await db.workshops.update_one({"id": workshop_id}, {"$set": updates})
     doc = await db.workshops.find_one({"id": workshop_id}, {"_id": 0})

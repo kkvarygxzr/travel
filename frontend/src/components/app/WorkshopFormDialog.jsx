@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import apiClient from "@/services/apiClient";
+import CitySelect from "@/components/app/CitySelect";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -61,7 +62,7 @@ export default function WorkshopFormDialog({ open, onOpenChange, initial, onSave
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label className="text-[12px]">Telepon</Label><Input value={form.phone} onChange={(e) => set("phone", e.target.value)} data-testid="wsh-phone" /></div>
-            <div><Label className="text-[12px]">Kota</Label><Input value={form.city} onChange={(e) => set("city", e.target.value)} data-testid="wsh-city" /></div>
+            <div><Label className="text-[12px]">Kota</Label><CitySelect value={form.city} onChange={(v) => set("city", v)} testId="wsh-city" /></div>
           </div>
           <div><Label className="text-[12px]">Alamat</Label><Input value={form.address} onChange={(e) => set("address", e.target.value)} data-testid="wsh-address" /></div>
           <div><Label className="text-[12px]">Spesialisasi (pisahkan koma)</Label><Input value={form.specialties} onChange={(e) => set("specialties", e.target.value)} placeholder="servis, rem, ac" data-testid="wsh-spec" /></div>

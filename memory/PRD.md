@@ -80,17 +80,25 @@ Owner (kontrol penuh + Pengaturan/Master Harga), Ops Admin (booking/dispatch), M
   HIJAU 46/46; testing_agent iteration_98 backend 19/19 + frontend semua skenario, 0 bug
   (suite: backend/tests/backend_test_ssot_batch5.py).
 
+- **Batch 6: Undo Gabungan + Kota Bengkel (2026-08-29 sesi 7, BUG-0142 — TUNTAS)**: merge kini
+  mencatat `merged_moved` (id dokumen yang ikut pindah) → `POST /api/master/destinations/{id}/
+  unmerge` mengembalikan dokumen tercatat (yang diubah manual sesudah merge dilewati/`skipped`)
+  + sumber aktif kembali; UI tombol "Batalkan Gabungan" (`md-unmerge-*`) dgn panel konfirmasi —
+  undo TANPA sentuh DB. `workshops.city` ikut master `cities` (city_or_400 create+update,
+  `CitySelect` wsh-city, rename kota cascade+usage+Excel mencakup bengkel). Guard INV-REF-02 →
+  **34 cek**. Verifikasi: gate HIJAU 46/46; testing_agent iteration_99 backend 11/11 + frontend
+  end-to-end, 0 bug (suite: backend/tests/backend_test_ssot_batch6.py).
+
 ## Backlog Terprioritisasi
-- **P1 — RC-E batch 6 (opsional)**: sisa kandidat kecil hasil audit (mis. `workshops.city` ke
-  master cities; kategori lain bila ditemukan) — bertahap per field
+- **P1 — RC-E batch 7 (opsional)**: sisa kandidat kecil hasil audit bila ditemukan
 - **P2**: kredensial nyata Meta/Google/WA/GA4 (menunggu user); migrasi media ke objstore
   (MEDIA_BACKEND masih local); load test (setelah integritas data beres)
 - **P2**: batas/anggaran harga per tipe di Master Harga (saran reviewer: sudah ada cap 100 jt/unit)
 - **P3 (rapikan terpisah)**: INFO check_nav_map — menu 'users' & 'vehicles' belum punya PAGE_META
   (bukan regresi); TTL cache utk `refs.*_or_400/normalize` & aggregation `$facet` utk usage count
-  Master Data/ekspor (saran reviewer iter_97/98, skala sekarang aman); undo merge destinasi (saat
-  ini restore hanya via DB)
+  Master Data/ekspor; bulk_write utk unmerge bila dokumen ratusan; `skipped_ids` rinci di respons
+  unmerge (saran reviewer iter_99, skala sekarang aman)
 
 ## Next Tasks
-1. RC-E batch 6 (bila ada temuan audit tersisa) / fitur berikutnya sesuai arahan user
+1. Fitur berikutnya sesuai arahan user (backlog SSOT praktis habis)
 2. Keputusan user: data produksi / kredensial integrasi nyata

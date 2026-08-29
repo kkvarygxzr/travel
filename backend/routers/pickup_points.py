@@ -114,7 +114,7 @@ async def master_destinations(user=Depends(MASTER)):
     rows = await db.destinations.find(
         {"deleted": {"$ne": True}},
         {"_id": 0, "id": 1, "name": 1, "slug": 1, "status": 1, "source": 1, "ops_active": 1,
-         "merged_into": 1, "merged_into_name": 1},
+         "merged_into": 1, "merged_into_name": 1, "merged_moved": 1},
     ).sort("name", 1).to_list(500)
     out = []
     for r in rows:
@@ -122,9 +122,11 @@ async def master_destinations(user=Depends(MASTER)):
         used_b = await db.bookings.count_documents({"destination": nm})
         used_l = await db.leads.count_documents({"destination": nm})
         used_q = await db.quotations.count_documents({"destination": nm})
+        moved = r.pop("merged_moved", None) or {}
         out.append({**r, "ops_active": r.get("ops_active") is not False,
                     "used_by_bookings": used_b, "used_by_leads": used_l,
-                    "used_by_quotations": used_q})
+                    "used_by_quotations": used_q,
+                    "merged_moved_count": sum(len(v or []) for v in moved.values())})
     return safe_doc(out)
 
 
@@ -178,17 +180,57 @@ async def merge_master_destination(dest_id: str, body: DestinationMergeRequest, 
     if target.get("merged_into") or target.get("ops_active") is False:
         raise HTTPException(status_code=400, detail="Target gabung harus destinasi AKTIF (bukan hasil gabungan/nonaktif)")
     src_name, tgt_name = _clean(source.get("name")), _clean(target.get("name"))
-    cascade = {"bookings": 0, "leads": 0, "quotations": 0}
+    cascade, moved = {"bookings": 0, "leads": 0, "quotations": 0}, {}
     for coll in ("bookings", "leads", "quotations"):
-        res = await db[coll].update_many({"destination": src_name}, {"$set": {"destination": tgt_name}})
-        cascade[coll] = res.modified_count
+        ids = [d["id"] async for d in db[coll].find(
+            {"destination": src_name}, {"_id": 0, "id": 1}) if d.get("id")]
+        if ids:
+            res = await db[coll].update_many({"destination": src_name},
+                                             {"$set": {"destination": tgt_name}})
+            cascade[coll] = res.modified_count
+            moved[coll] = ids
     await db.destinations.update_one({"id": dest_id}, {"$set": {
         "ops_active": False, "merged_into": target["id"], "merged_into_name": tgt_name,
-        "updated_at": now_iso()}})
+        "merged_moved": moved, "updated_at": now_iso()}})
     await record(db, actor=user, action="update", entity_type="destination", entity_id=dest_id,
                  summary=f"GABUNG destinasi: '{src_name}' → '{tgt_name}' "
                          f"· cascade {sum(cascade.values())} dokumen")
     return {"merged": True, "source": src_name, "target": tgt_name, "cascade": cascade}
+
+
+@router.post("/master/destinations/{dest_id}/unmerge")
+async def unmerge_master_destination(dest_id: str, user=Depends(MASTER)):
+    """BATALKAN gabungan (batch 6): dokumen yang IKUT PINDAH saat merge (tercatat di
+    `merged_moved`) dikembalikan memakai nama sumber — hanya bila destinasinya masih nama
+    target (dokumen yang sudah diubah manual sesudah merge TIDAK disentuh, dilaporkan
+    sebagai `skipped`). Sumber aktif kembali di selector."""
+    db = get_db()
+    source = await db.destinations.find_one({"id": dest_id, "deleted": {"$ne": True}}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Destinasi tidak ditemukan")
+    if not source.get("merged_into"):
+        raise HTTPException(status_code=400, detail="Destinasi ini tidak sedang dalam status gabungan")
+    src_name = _clean(source.get("name"))
+    target = await db.destinations.find_one({"id": source["merged_into"]}, {"_id": 0})
+    tgt_name = _clean((target or {}).get("name")) or _clean(source.get("merged_into_name"))
+    moved = source.get("merged_moved") or {}
+    restored, skipped = {"bookings": 0, "leads": 0, "quotations": 0}, 0
+    for coll in ("bookings", "leads", "quotations"):
+        for doc_id in (moved.get(coll) or []):
+            res = await db[coll].update_one(
+                {"id": doc_id, "destination": tgt_name}, {"$set": {"destination": src_name}})
+            if res.modified_count:
+                restored[coll] += 1
+            else:
+                skipped += 1
+    await db.destinations.update_one({"id": dest_id}, {
+        "$set": {"ops_active": True, "updated_at": now_iso()},
+        "$unset": {"merged_into": "", "merged_into_name": "", "merged_moved": ""}})
+    await record(db, actor=user, action="update", entity_type="destination", entity_id=dest_id,
+                 summary=f"BATAL GABUNG destinasi: '{src_name}' dipulihkan dari '{tgt_name}' "
+                         f"· {sum(restored.values())} dokumen kembali, {skipped} dilewati")
+    return {"unmerged": True, "source": src_name, "from_target": tgt_name,
+            "restored": restored, "skipped": skipped}
 
 
 # ---------- KOTA (master utk customers.city & partners.city — INV-REF-02 batch 5) ----------
@@ -229,8 +271,10 @@ async def master_cities(user=Depends(MASTER)):
         nm = r.get("name")
         used_c = await db.customers.count_documents({"city": nm})
         used_p = await db.partners.count_documents({"city": nm})
+        used_w = await db.workshops.count_documents({"city": nm})
         out.append({**r, "active": r.get("active") is not False,
-                    "used_by_customers": used_c, "used_by_partners": used_p})
+                    "used_by_customers": used_c, "used_by_partners": used_p,
+                    "used_by_workshops": used_w})
     return safe_doc(out)
 
 
@@ -241,14 +285,14 @@ async def update_master_city(city_id: str, body: MasterCityUpdate, user=Depends(
     city = await db.cities.find_one({"id": city_id, "deleted": {"$ne": True}}, {"_id": 0})
     if not city:
         raise HTTPException(status_code=404, detail="Kota tidak ditemukan")
-    updates, cascade = {}, {"customers": 0, "partners": 0}
+    updates, cascade = {}, {"customers": 0, "partners": 0, "workshops": 0}
     new_name = _clean(body.name) if body.name is not None else ""
     old_name = _clean(city.get("name"))
     if new_name and new_name != old_name:
         if await _name_taken(db.cities, new_name, exclude_id=city_id):
             raise HTTPException(status_code=400, detail=f"Nama '{new_name}' sudah dipakai kota lain")
         updates["name"] = new_name
-        for coll in ("customers", "partners"):
+        for coll in ("customers", "partners", "workshops"):
             res = await db[coll].update_many({"city": old_name}, {"$set": {"city": new_name}})
             cascade[coll] = res.modified_count
     if body.active is not None:
@@ -290,12 +334,13 @@ async def master_export(user=Depends(MASTER)):
                     r.get("merged_into_name") or "-"])
 
     ws3 = wb.create_sheet("Kota")
-    ws3.append(["Nama", "Aktif", "Pelanggan", "Mitra"])
+    ws3.append(["Nama", "Aktif", "Pelanggan", "Mitra", "Bengkel"])
     async for r in db.cities.find({"deleted": {"$ne": True}}, {"_id": 0}).sort("name", 1):
         nm = r.get("name")
         ws3.append([nm, "Ya" if r.get("active") is not False else "Tidak",
                     await db.customers.count_documents({"city": nm}),
-                    await db.partners.count_documents({"city": nm})])
+                    await db.partners.count_documents({"city": nm}),
+                    await db.workshops.count_documents({"city": nm})])
 
     for sheet in wb.worksheets:
         for col in sheet.columns:
