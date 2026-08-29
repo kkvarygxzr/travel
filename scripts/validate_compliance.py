@@ -41,6 +41,8 @@ CANONICAL = {"users","sessions","vehicles","drivers","customers","leads","conver
     "pickup_points",
     # INV-REF-02 batch 5: master kota (relasi customers.city & partners.city)
     "cities",
+    # Page builder situs: urutan & override section halaman publik (home/about/contact)
+    "site_pages",
     # CMS-CW2 (draft/jadwal, funnel ulasan, analitik konten) — docs/03_DATA_MODEL.md §7
     "content_previews","review_requests","content_stats",
     # CMS-CW3 (riwayat versi, tempat sampah, pengalihan URL) — docs/03_DATA_MODEL.md §8

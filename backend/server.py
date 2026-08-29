@@ -56,6 +56,7 @@ from routers import (  # noqa: E402
     reviews,
     seo,
     settings,
+    site_pages,
     shares,
     trips,
     users,
@@ -126,6 +127,7 @@ app.include_router(shares.router)
 app.include_router(notifications.router)
 app.include_router(inbox.router)
 app.include_router(settings.router)
+app.include_router(site_pages.router)  # Page builder halaman situs + Pengaturan Situs (CMS)
 app.include_router(pricing.router)
 app.include_router(quotations.router)
 app.include_router(content.router)

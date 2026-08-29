@@ -282,7 +282,15 @@ function PublicShell() {
         <div className="mx-auto flex max-w-7xl flex-col gap-10 px-5 py-14 md:flex-row md:flex-wrap md:justify-between">
           <div className="md:max-w-xs">
             <Logo name={company.name || "RahazaTrans"} wordmarkClass="text-current" />
-            <p className="mt-3 text-[13px] leading-relaxed opacity-75">{bi("Perjalanan korporat & wisata premium dengan armada Toyota Hiace Premio, driver profesional, dan pelacakan real-time.", "Premium corporate & leisure travel with a Toyota Hiace Premio fleet, professional drivers and real-time tracking.", lang)}</p>
+            <p className="mt-3 text-[13px] leading-relaxed opacity-75">{company.footer_text || bi("Perjalanan korporat & wisata premium dengan armada Toyota Hiace Premio, driver profesional, dan pelacakan real-time.", "Premium corporate & leisure travel with a Toyota Hiace Premio fleet, professional drivers and real-time tracking.", lang)}</p>
+            {(company.instagram || company.facebook || company.tiktok || company.youtube) ? (
+              <div className="mt-4 flex flex-wrap gap-3 text-[13px]" data-testid="footer-socials">
+                {company.instagram ? <a href={company.instagram} target="_blank" rel="noreferrer" className="opacity-80 underline-offset-4 transition hover:opacity-100 hover:underline" data-testid="footer-social-instagram">Instagram</a> : null}
+                {company.facebook ? <a href={company.facebook} target="_blank" rel="noreferrer" className="opacity-80 underline-offset-4 transition hover:opacity-100 hover:underline" data-testid="footer-social-facebook">Facebook</a> : null}
+                {company.tiktok ? <a href={company.tiktok} target="_blank" rel="noreferrer" className="opacity-80 underline-offset-4 transition hover:opacity-100 hover:underline" data-testid="footer-social-tiktok">TikTok</a> : null}
+                {company.youtube ? <a href={company.youtube} target="_blank" rel="noreferrer" className="opacity-80 underline-offset-4 transition hover:opacity-100 hover:underline" data-testid="footer-social-youtube">YouTube</a> : null}
+              </div>
+            ) : null}
           </div>
           <div>
             <h4 className="text-[12px] font-semibold uppercase tracking-wider opacity-55">{bi("Jelajahi", "Explore", lang)}</h4>
