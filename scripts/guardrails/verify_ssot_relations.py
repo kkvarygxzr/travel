@@ -161,11 +161,11 @@ def static_checks(g: Guard):
     if "/master/cities" not in pk or "/merge" not in pk or "/master/export" not in pk:
         g.add("routers/pickup_points.py: endpoint master kota / gabung destinasi / ekspor Excel "
               "hilang — kelola master tidak lagi satu pintu.")
-    # --- batch 6: undo gabungan + kota bengkel ---
+    # --- batch 6/7: undo gabungan (destinasi & titik jemput) + kota bengkel ---
     g.bump()
-    if "/unmerge" not in pk or "merged_moved" not in pk:
-        g.add("routers/pickup_points.py: endpoint `/unmerge` atau catatan `merged_moved` hilang — "
-              "gabungan destinasi tidak bisa dibatalkan tanpa menyentuh DB.")
+    if pk.count("/merge") < 2 or pk.count("/unmerge") < 2 or "merged_moved" not in pk:
+        g.add("routers/pickup_points.py: endpoint merge/unmerge (destinasi DAN titik jemput) "
+              "atau catatan `merged_moved` hilang — gabungan tidak bisa dibatalkan tanpa DB.")
     wsh_src = read(BACKEND / "routers" / "workshops.py")
     g.bump()
     if wsh_src.count("city_or_400(") < 2:

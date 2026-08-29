@@ -75,7 +75,9 @@ async def master_pickup_points(user=Depends(MASTER)):
     out = []
     for r in rows:
         used = await db.bookings.count_documents({"origin": r.get("name")})
-        out.append({**r, "active": r.get("active") is not False, "used_by_bookings": used})
+        moved = r.pop("merged_moved", None) or {}
+        out.append({**r, "active": r.get("active") is not False, "used_by_bookings": used,
+                    "merged_moved_count": sum(len(v or []) for v in moved.values())})
     return safe_doc(out)
 
 
@@ -105,6 +107,70 @@ async def update_pickup_point(point_id: str, body: PickupPointUpdate, user=Depen
                          f"{' (nonaktif)' if updates.get('active') is False else ''}"
                          f" · cascade {cascaded} booking")
     return {**point, **updates, "cascaded_bookings": cascaded}
+
+
+@router.post("/master/pickup-points/{point_id}/merge")
+async def merge_master_pickup_point(point_id: str, body: DestinationMergeRequest, user=Depends(MASTER)):
+    """GABUNG titik jemput kembar (batch 7): booking SUMBER pindah memakai nama TARGET,
+    lalu sumber dinonaktifkan + ditandai `merged_into` (tidak ada data yang dihapus)."""
+    db = get_db()
+    if point_id == body.target_id:
+        raise HTTPException(status_code=400, detail="Sumber dan target gabung tidak boleh sama")
+    source = await db.pickup_points.find_one({"id": point_id, "deleted": {"$ne": True}}, {"_id": 0})
+    target = await db.pickup_points.find_one({"id": body.target_id, "deleted": {"$ne": True}}, {"_id": 0})
+    if not source or not target:
+        raise HTTPException(status_code=404, detail="Titik jemput sumber/target tidak ditemukan")
+    if source.get("merged_into"):
+        raise HTTPException(status_code=400, detail="Titik jemput ini sudah pernah digabung")
+    if target.get("merged_into") or target.get("active") is False:
+        raise HTTPException(status_code=400, detail="Target gabung harus titik jemput AKTIF (bukan hasil gabungan/nonaktif)")
+    src_name, tgt_name = _clean(source.get("name")), _clean(target.get("name"))
+    ids = [d["id"] async for d in db.bookings.find(
+        {"origin": src_name}, {"_id": 0, "id": 1}) if d.get("id")]
+    cascaded = 0
+    if ids:
+        res = await db.bookings.update_many({"origin": src_name}, {"$set": {"origin": tgt_name}})
+        cascaded = res.modified_count
+    await db.pickup_points.update_one({"id": point_id}, {"$set": {
+        "active": False, "merged_into": target["id"], "merged_into_name": tgt_name,
+        "merged_moved": {"bookings": ids}, "updated_at": now_iso()}})
+    await record(db, actor=user, action="update", entity_type="pickup_point", entity_id=point_id,
+                 summary=f"GABUNG titik jemput: '{src_name}' → '{tgt_name}' "
+                         f"· cascade {cascaded} booking")
+    return {"merged": True, "source": src_name, "target": tgt_name,
+            "cascade": {"bookings": cascaded}}
+
+
+@router.post("/master/pickup-points/{point_id}/unmerge")
+async def unmerge_master_pickup_point(point_id: str, user=Depends(MASTER)):
+    """BATALKAN gabungan titik jemput: booking yang IKUT PINDAH (tercatat `merged_moved`)
+    dikembalikan — hanya bila origin-nya masih nama target; sisanya `skipped`."""
+    db = get_db()
+    source = await db.pickup_points.find_one({"id": point_id, "deleted": {"$ne": True}}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Titik jemput tidak ditemukan")
+    if not source.get("merged_into"):
+        raise HTTPException(status_code=400, detail="Titik jemput ini tidak sedang dalam status gabungan")
+    src_name = _clean(source.get("name"))
+    target = await db.pickup_points.find_one({"id": source["merged_into"]}, {"_id": 0})
+    tgt_name = _clean((target or {}).get("name")) or _clean(source.get("merged_into_name"))
+    moved = source.get("merged_moved") or {}
+    restored, skipped = 0, 0
+    for doc_id in (moved.get("bookings") or []):
+        res = await db.bookings.update_one(
+            {"id": doc_id, "origin": tgt_name}, {"$set": {"origin": src_name}})
+        if res.modified_count:
+            restored += 1
+        else:
+            skipped += 1
+    await db.pickup_points.update_one({"id": point_id}, {
+        "$set": {"active": True, "updated_at": now_iso()},
+        "$unset": {"merged_into": "", "merged_into_name": "", "merged_moved": ""}})
+    await record(db, actor=user, action="update", entity_type="pickup_point", entity_id=point_id,
+                 summary=f"BATAL GABUNG titik jemput: '{src_name}' dipulihkan dari '{tgt_name}' "
+                         f"· {restored} booking kembali, {skipped} dilewati")
+    return {"unmerged": True, "source": src_name, "from_target": tgt_name,
+            "restored": {"bookings": restored}, "skipped": skipped}
 
 
 @router.get("/master/destinations")

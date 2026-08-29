@@ -27,6 +27,24 @@
 
 ## REGISTRY
 
+### BUG-0143 — Batch 7: titik jemput kembar tak bisa digabung/dibatalkan seperti destinasi — FIXED 2026-08-29
+- Tanggal       : 2026-08-29 (sesi 8)
+- Fase/Modul    : Master Data / pickup_points merge+unmerge
+- Gejala        : aksi Gabung/Batalkan hanya ada utk destinasi; titik jemput kembar (mis.
+                  "Stasiun Bandung" vs varian ejaan) tetap terpecah riwayat booking-nya.
+- Perbaikan     : `POST /api/master/pickup-points/{id}/merge` (cascade `bookings.origin` →
+                  nama target + catat `merged_moved.bookings`; sumber `active=False` +
+                  `merged_into`; target wajib aktif & bukan hasil gabungan) dan
+                  `POST .../unmerge` (kembalikan booking tercatat bila origin masih nama
+                  target, sisanya `skipped`; sumber aktif kembali). FE `MasterData.jsx`
+                  digeneralisasi: tombol Gabung/Batalkan Gabungan + panel konfirmasi kini
+                  muncul di panel Titik Jemput dgn testid yang sama (`md-merge-*`,
+                  `md-unmerge-*`); teks panel menyesuaikan "titik jemput"/"destinasi".
+- Regression    : cek guard diperketat (merge & unmerge masing2 ≥2 di router) — tetap 34 cek.
+                  Round-trip manual: merge (1 booking pindah) → unmerge (1 kembali, 0 skipped)
+                  → unmerge ulang 400, merge diri sendiri 400.
+- Status        : FIXED — gate HIJAU 46/46; testing_agent di sesi ini.
+
 ### BUG-0142 — Batch 6: gabungan destinasi tak bisa dibatalkan dari UI + kota bengkel masih teks bebas — FIXED 2026-08-29
 - Tanggal       : 2026-08-29 (sesi 7)
 - Fase/Modul    : RC-E batch 6 / Master Data (unmerge), workshops.city

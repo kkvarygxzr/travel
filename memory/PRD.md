@@ -89,8 +89,17 @@ Owner (kontrol penuh + Pengaturan/Master Harga), Ops Admin (booking/dispatch), M
   **34 cek**. Verifikasi: gate HIJAU 46/46; testing_agent iteration_99 backend 11/11 + frontend
   end-to-end, 0 bug (suite: backend/tests/backend_test_ssot_batch6.py).
 
+- **Batch 7: Gabung Titik Jemput (2026-08-29 sesi 8, BUG-0143 — TUNTAS)**: merge + unmerge utk
+  titik jemput kembar — `POST /api/master/pickup-points/{id}/merge|unmerge` (cascade
+  `bookings.origin`, catat `merged_moved`, sumber nonaktif + `merged_into`; unmerge kembalikan
+  booking tercatat, `skipped` utk yang diubah manual); UI panel Titik Jemput kini punya tombol
+  Gabung/Batalkan Gabungan yang sama dgn destinasi (Row/MergePanel digeneralisasi via prop
+  `kind`). Verifikasi: gate HIJAU 46/46; testing_agent iteration_100 backend 8/8 + frontend
+  end-to-end (termasuk regresi merge destinasi), 0 bug (suite:
+  backend/tests/backend_test_ssot_batch7.py).
+
 ## Backlog Terprioritisasi
-- **P1 — RC-E batch 7 (opsional)**: sisa kandidat kecil hasil audit bila ditemukan
+- **P1 — RC-E batch 8 (opsional)**: sisa kandidat kecil hasil audit bila ditemukan
 - **P2**: kredensial nyata Meta/Google/WA/GA4 (menunggu user); migrasi media ke objstore
   (MEDIA_BACKEND masih local); load test (setelah integritas data beres)
 - **P2**: batas/anggaran harga per tipe di Master Harga (saran reviewer: sudah ada cap 100 jt/unit)

@@ -2,7 +2,19 @@
 
 > **Bahasa kerja: Indonesia.** Agent berikutnya WAJIB merespons user dalam Bahasa Indonesia.
 >
-> ## ✅ STATUS SESI TERAKHIR (2026-08-29, sesi 7 — BATCH 6: UNDO GABUNGAN + KOTA BENGKEL, TUNTAS)
+> ## ✅ STATUS SESI TERAKHIR (2026-08-29, sesi 8 — BATCH 7: GABUNG TITIK JEMPUT, TUNTAS)
+> **BUG-0143**: merge + unmerge utk TITIK JEMPUT kembar, pola identik destinasi —
+> `POST /api/master/pickup-points/{id}/merge` (cascade `bookings.origin` → nama target, catat
+> `merged_moved.bookings`, sumber `active=false` + `merged_into`; target wajib aktif) &
+> `POST .../unmerge` (kembalikan booking tercatat bila origin masih nama target, sisanya
+> `skipped`). `master_pickup_points` kini mengembalikan `merged_moved_count`. FE
+> `MasterData.jsx`: Row/MergePanel digeneralisasi via prop `kind` (merge tampil utk
+> kind!=='city'), testid sama (`md-merge-*`/`md-unmerge-*`). Guard: cek diperketat
+> `pk.count("/merge") ≥ 2` & `pk.count("/unmerge") ≥ 2` (tetap 34 cek). Gate **HIJAU 46/46**;
+> testing_agent **iteration_100 0 bug** (backend 8/8; suite
+> `backend/tests/backend_test_ssot_batch7.py`).
+>
+> ## Riwayat sesi 7 (2026-08-29 — batch 6: undo gabungan + kota bengkel)
 > **BUG-0142**: (1) merge destinasi kini mencatat `merged_moved` (id dokumen per koleksi) →
 > endpoint baru `POST /api/master/destinations/{id}/unmerge` mengembalikan dokumen tercatat
 > (hanya bila destinasinya masih nama target; sisanya `skipped`), sumber `ops_active=true` +

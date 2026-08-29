@@ -24,19 +24,20 @@ function totalUsage(row, kind) {
   return (row.used_by_bookings || 0) + (row.used_by_leads || 0) + (row.used_by_quotations || 0);
 }
 
-function MergePanel({ row, siblings, busy, onMerge, onClose }) {
+function MergePanel({ row, kind, siblings, busy, onMerge, onClose }) {
   const [targetId, setTargetId] = useState("");
   const target = siblings.find((s) => s.id === targetId);
+  const word = kind === "pickup" ? "titik jemput" : "destinasi";
   return (
     <div className="w-full rounded-lg border border-[#C9DDF5] bg-[#EFF6FF] px-3 py-2 text-[12px] text-[#12406E]"
       data-testid={`md-merge-panel-${row.id}`}>
-      Gabungkan "<b>{row.name}</b>" ke destinasi lain — {usageLabel(row, "dest")} milik "{row.name}" akan
+      Gabungkan "<b>{row.name}</b>" ke {word} lain — {usageLabel(row, kind)} milik "{row.name}" akan
       pindah memakai nama target, lalu baris ini dinonaktifkan (tidak ada data yang dihapus).
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
         <div className="min-w-[220px]">
           <Select value={targetId} onValueChange={setTargetId}>
             <SelectTrigger className="!h-8 bg-white text-[12.5px]" data-testid={`md-merge-target-${row.id}`}>
-              <SelectValue placeholder="Pilih destinasi target…" />
+              <SelectValue placeholder={`Pilih ${word} target…`} />
             </SelectTrigger>
             <SelectContent>
               {siblings.map((s) => (
@@ -63,7 +64,7 @@ function Row({ row, kind, busy, onRename, onToggle, onMerge, onUnmerge, mergeTar
   const [unmerging, setUnmerging] = useState(false);
   const [name, setName] = useState(row.name || "");
   const active = kind === "dest" ? row.ops_active : row.active;
-  const merged = kind === "dest" && !!row.merged_into;
+  const merged = kind !== "city" && !!row.merged_into;
   const save = () => {
     const clean = name.trim();
     if (clean.length < 2 || clean === row.name) { setEditing(false); setName(row.name); return; }
@@ -106,7 +107,7 @@ function Row({ row, kind, busy, onRename, onToggle, onMerge, onUnmerge, mergeTar
         <>
           <button className="secondary-button !h-8 !px-2.5 !text-[11.5px]" disabled={busy || editing}
             onClick={() => setEditing(true)} data-testid={`md-rename-${row.id}`}><Pencil size={12} /> Ganti Nama</button>
-          {kind === "dest" ? (
+          {kind !== "city" ? (
             <button className="secondary-button !h-8 !px-2.5 !text-[11.5px]" disabled={busy || editing}
               onClick={() => setMerging((v) => !v)} data-testid={`md-merge-${row.id}`}><Merge size={12} /> Gabung</button>
           ) : null}
@@ -132,14 +133,15 @@ function Row({ row, kind, busy, onRename, onToggle, onMerge, onUnmerge, mergeTar
         </div>
       ) : null}
       {merging && !merged ? (
-        <MergePanel row={row} busy={busy} onClose={() => setMerging(false)}
-          siblings={(mergeTargets || []).filter((s) => s.id !== row.id && !s.merged_into && s.ops_active)}
+        <MergePanel row={row} kind={kind} busy={busy} onClose={() => setMerging(false)}
+          siblings={(mergeTargets || []).filter((s) => s.id !== row.id && !s.merged_into
+            && (kind === "pickup" ? s.active : s.ops_active))}
           onMerge={(src, tgt) => { onMerge(src, tgt); setMerging(false); }} />
       ) : null}
       {unmerging && merged ? (
         <div className="w-full rounded-lg border border-[#C9DDF5] bg-[#EFF6FF] px-3 py-2 text-[12px] text-[#12406E]"
           data-testid={`md-unmerge-panel-${row.id}`}>
-          Kembalikan "<b>{row.name}</b>" sebagai destinasi aktif?{" "}
+          Kembalikan "<b>{row.name}</b>" sebagai {kind === "pickup" ? "titik jemput" : "destinasi"} aktif?{" "}
           {row.merged_moved_count > 0
             ? <><b>{row.merged_moved_count} dokumen</b> yang ikut pindah ke "{row.merged_into_name}" akan dikembalikan memakai nama ini (dokumen yang sudah diubah manual setelah gabungan tidak disentuh).</>
             : <>Tidak ada dokumen yang ikut pindah — baris ini hanya diaktifkan kembali.</>}
@@ -212,6 +214,14 @@ export default function MasterData() {
   const togglePickup = (row, active) => act(async () => {
     await apiClient.patch(`/master/pickup-points/${row.id}`, { active });
   }, active ? `"${row.name}" diaktifkan` : `"${row.name}" dinonaktifkan`);
+  const mergePickup = (row, target) => act(async () => {
+    const { data } = await apiClient.post(`/master/pickup-points/${row.id}/merge`, { target_id: target.id });
+    return ` · ${data.cascade?.bookings || 0} booking pindah ke "${data.target}"`;
+  }, `"${row.name}" digabung`);
+  const unmergePickup = (row) => act(async () => {
+    const { data } = await apiClient.post(`/master/pickup-points/${row.id}/unmerge`);
+    return ` · ${data.restored?.bookings || 0} booking kembali${data.skipped ? ` (${data.skipped} dilewati)` : ""}`;
+  }, `Gabungan "${row.name}" dibatalkan`);
   const renameDest = (row, name) => act(async () => {
     const { data } = await apiClient.patch(`/master/destinations/${row.id}`, { name });
     const n = Object.values(data.cascade || {}).reduce((a, b) => a + b, 0);
@@ -271,8 +281,8 @@ export default function MasterData() {
       </div>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Panel icon={MapPin} title="Titik Jemput" kind="pickup" rows={pickups} busy={busy}
-          desc="Dipakai field 'Titik Jemput' pada booking. Tambah cepat tersedia langsung di form booking."
-          onRename={renamePickup} onToggle={togglePickup} testId="md-pickup-panel" />
+          desc="Dipakai field 'Titik Jemput' pada booking. Gabung menyatukan titik jemput kembar (bisa dibatalkan). Tambah cepat tersedia langsung di form booking."
+          onRename={renamePickup} onToggle={togglePickup} onMerge={mergePickup} onUnmerge={unmergePickup} testId="md-pickup-panel" />
         <Panel icon={Building2} title="Kota" kind="city" rows={cities} busy={busy}
           desc="Dipakai field 'Kota' pada pelanggan & mitra. Tambah cepat tersedia langsung di form."
           onRename={renameCity} onToggle={toggleCity} testId="md-city-panel" />
