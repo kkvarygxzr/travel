@@ -318,6 +318,22 @@ class MasterDestinationUpdate(BaseModel):
     ops_active: Optional[bool] = None
 
 
+class CityCreate(BaseModel):
+    """INV-REF-02 batch 5: master KOTA (customers.city & partners.city) — quick-add satu pintu."""
+    name: str = Field(min_length=2, max_length=120)
+
+
+class MasterCityUpdate(BaseModel):
+    """Master Data: rename kota (cascade customers/partners) / aktif-nonaktif."""
+    name: Optional[str] = Field(default=None, min_length=2, max_length=120)
+    active: Optional[bool] = None
+
+
+class DestinationMergeRequest(BaseModel):
+    """Gabung destinasi kembar: seluruh booking/lead/penawaran sumber pindah ke nama target."""
+    target_id: str = Field(min_length=1, max_length=60)
+
+
 class UnitDayRateUpdate(BaseModel):
     """Master Harga (RC-B): tulis tarif per unit. 0 = hapus override (pakai tarif tipe)."""
     day_rate: float = Field(default=0, ge=0, le=100_000_000)  # batas atas anti salah ketik

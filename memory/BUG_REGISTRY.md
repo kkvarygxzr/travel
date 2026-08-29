@@ -27,6 +27,29 @@
 
 ## REGISTRY
 
+### BUG-0141 — SSOT batch 5: kota pelanggan/mitra & tipe armada landing teks bebas; tanpa ekspor master; destinasi kembar tak bisa digabung — FIXED 2026-08-29
+- Tanggal       : 2026-08-29 (sesi 6, lanjutan seri RC-E)
+- Fase/Modul    : RC-E batch 5 / customers.city, partners.city, leads.vehicle_type, Master Data
+- Gejala        : (a) kota pelanggan & mitra diketik bebas ("bandung" vs "Bandung") → laporan
+                  per-kota bercabang; (b) tipe armada dari lead landing teks bebas → tidak cocok
+                  SSOT `VEHICLE_TYPE_LABELS`; (c) tim ops tidak bisa mengunduh master sebagai
+                  Excel; (d) destinasi kembar (mis. hasil warisan) tak bisa disatukan — riwayat
+                  booking/lead/penawaran terpecah selamanya.
+- Perbaikan     : (a) master KOTA baru `cities` (cty_) + `refs.city_or_400` KERAS di
+                  create/update customers & partners + quick-add `POST /api/cities` +
+                  selector FE `CitySelect` (cf-city/pf-city) + kelola `GET/PATCH
+                  /api/master/cities[/{id}]` (rename cascade customers+partners, toggle);
+                  (b) `refs.vehicle_type_normalize` LUNAK di lead landing +
+                  `requested_vehicle_type` booking publik; (c) `GET /api/master/export`
+                  → Excel 3 sheet (openpyxl) + tombol `md-export-excel`; (d) `POST
+                  /api/master/destinations/{id}/merge` — cascade 3 koleksi ke nama target,
+                  sumber `ops_active=False` + `merged_into` (tanpa hapus), UI panel Gabung
+                  (`md-merge-*`) + badge "Digabung →". Seed + `scripts/migrate_ssot_batch5.py`;
+                  `cities` terdaftar di verify_schema/validate_compliance/PURGE_COLLECTIONS.
+- Regression    : INV-REF-02 diperluas → 30 cek (+ kota ngawur 400, GET /cities).
+- Status        : FIXED — verifikasi manual: city 'bandung'→'Bandung', merge cascade 1 lead +
+                  re-merge 400, ekspor xlsx 3 sheet; gate + testing_agent di sesi ini.
+
 ### BUG-0140 — SSOT batch 4: jalur publik/inbound masih menulis origin/destination teks bebas + rename master tanpa preview — FIXED 2026-08-29
 - Tanggal       : 2026-08-29 (sesi 5, lanjutan seri RC-E)
 - Fase/Modul    : RC-E batch 4 / booking_public, landing lead, lead ads, Master Data

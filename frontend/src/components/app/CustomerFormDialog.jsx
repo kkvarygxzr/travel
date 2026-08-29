@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CitySelect from "@/components/app/CitySelect";
 
 const TYPES = [{ v: "individual", l: "Individu" }, { v: "corporate", l: "Korporat" }];
 const EMPTY = { name: "", phone: "", email: "", type: "individual", city: "", address: "", notes: "" };
@@ -85,7 +86,7 @@ export default function CustomerFormDialog({ open, onOpenChange, initial, onSave
           </div>
           <div className="space-y-1.5">
             <Label>Kota</Label>
-            <Input value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="Bandung" data-testid="cf-city" />
+            <CitySelect value={form.city} onChange={(v) => set("city", v)} testId="cf-city" />
           </div>
           <div className="space-y-1.5">
             <Label>Alamat</Label>

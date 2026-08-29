@@ -206,3 +206,38 @@ async def origin_normalize(db, value):
         if str(p.get("name") or "").strip().lower() == low:
             return str(p.get("name")).strip()
     return raw
+
+
+async def city_or_400(db, value, *, field_label: str = "Kota"):
+    """INV-REF-02 batch 5: kota pelanggan/mitra WAJIB dari master `cities` (jalur ERP).
+
+    Kosong = sah. Cocok case-insensitive vs `name`; tersimpan NAMA KANONIK master.
+    Ops bisa menambah kota baru lewat POST /api/cities (quick-add) — tetap satu pintu.
+    """
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    low = raw.lower()
+    rows = await db.cities.find(
+        {"deleted": {"$ne": True}, "active": {"$ne": False}}, {"_id": 0, "name": 1}).to_list(500)
+    for c in rows:
+        if str(c.get("name") or "").strip().lower() == low:
+            return str(c.get("name")).strip()
+    names = sorted({str(c.get("name") or "").strip() for c in rows if c.get("name")})
+    contoh = ", ".join(names[:8]) or "-"
+    raise _bad(f"{field_label} '{raw[:40]}' tidak ada di master kota. "
+               f"Pilih dari master (mis. {contoh}) atau tambahkan lewat tombol + di form.")
+
+
+def vehicle_type_normalize(value):
+    """INV-REF-02 batch 5: normalisasi LUNAK tipe armada utk jalur PUBLIK/inbound
+    (lead landing, permintaan booking publik): cocok kunci/label SSOT
+    `pricing.VEHICLE_TYPE_LABELS` → kunci kanonik; tidak cocok → apa adanya."""
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    low = raw.lower()
+    for key, label in VEHICLE_TYPE_LABELS.items():
+        if low == key.lower() or low == str(label).strip().lower():
+            return key
+    return raw

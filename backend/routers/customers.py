@@ -11,7 +11,7 @@ from db import get_db
 from dependencies import require_section
 from schemas import CustomerCreate, CustomerUpdate
 from services.audit import record
-from services.refs import CUSTOMER_TYPES, must_be_choice
+from services.refs import CUSTOMER_TYPES, city_or_400, must_be_choice
 from services.identity import find_customer_by_identity, normalize_phone
 
 router = APIRouter(prefix="/api", tags=["customers"])
@@ -44,7 +44,8 @@ async def create_customer(body: CustomerCreate, user=Depends(CUST)):
         # daftar membuat penyaring "Individu/Korporat" bocor tanpa ada yang menyadarinya.
         "type": must_be_choice(body.type, CUSTOMER_TYPES, field_label="Jenis pelanggan",
                                default="individual"),
-        "city": body.city or "",
+        # INV-REF-02 batch 5: kota = relasi master `cities` (nama kanonik, bukan teks bebas).
+        "city": await city_or_400(db, body.city, field_label="Kota pelanggan"),
         "address": body.address or "", "total_trips": 0, "lifetime_value": 0.0,
         "notes": body.notes or "", "created_at": now_iso(),
     }
@@ -141,6 +142,8 @@ async def update_customer(customer_id: str, body: CustomerUpdate, user=Depends(C
         updates["type"] = must_be_choice(updates["type"], CUSTOMER_TYPES,
                                          field_label="Jenis pelanggan",
                                          default=before.get("type"))
+    if "city" in updates:
+        updates["city"] = await city_or_400(db, updates["city"], field_label="Kota pelanggan")
     if updates:
         try:
             await db.customers.update_one({"id": customer_id}, {"$set": updates})

@@ -1,22 +1,32 @@
-"""routers/pickup_points.py — Master Data referensi (INV-REF-02): TITIK JEMPUT + DESTINASI (ops).
+"""routers/pickup_points.py — Master Data referensi (INV-REF-02): TITIK JEMPUT + DESTINASI + KOTA.
 
-`bookings.origin` & destinasi (booking/lead/penawaran) bukan teks bebas — nilainya wajib dari
-master di file ini / koleksi `destinations`. Halaman kelola: /app/masterdata (section `masterdata`,
-owner + ops_admin). RENAME di sini CASCADE ke dokumen pemakai (booking/lead/penawaran) supaya
-nama kanonik tidak pernah bercabang; NONAKTIF menyembunyikan dari selector & menolak pemakaian
-BARU tanpa merusak data lama.
+`bookings.origin`, destinasi (booking/lead/penawaran), dan kota (customers/partners) bukan teks
+bebas — nilainya wajib dari master di file ini / koleksi terkait. Halaman kelola: /app/masterdata
+(section `masterdata`, owner + ops_admin). RENAME di sini CASCADE ke dokumen pemakai supaya nama
+kanonik tidak pernah bercabang; NONAKTIF menyembunyikan dari selector & menolak pemakaian BARU
+tanpa merusak data lama. Batch 5: master KOTA, GABUNG destinasi kembar, ekspor Excel.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from io import BytesIO
 
 from core_utils import new_id, now_iso, safe_doc
 from db import get_db
 from dependencies import require_section
-from schemas import MasterDestinationUpdate, PickupPointCreate, PickupPointUpdate
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from schemas import (
+    CityCreate,
+    DestinationMergeRequest,
+    MasterCityUpdate,
+    MasterDestinationUpdate,
+    PickupPointCreate,
+    PickupPointUpdate,
+)
 from services.audit import record
 
 router = APIRouter(prefix="/api", tags=["master-data"])
 BOOKINGS = require_section("bookings")
 MASTER = require_section("masterdata")
+CITIES = require_section("customers")
 
 
 def _clean(name: str) -> str:
@@ -103,7 +113,8 @@ async def master_destinations(user=Depends(MASTER)):
     db = get_db()
     rows = await db.destinations.find(
         {"deleted": {"$ne": True}},
-        {"_id": 0, "id": 1, "name": 1, "slug": 1, "status": 1, "source": 1, "ops_active": 1},
+        {"_id": 0, "id": 1, "name": 1, "slug": 1, "status": 1, "source": 1, "ops_active": 1,
+         "merged_into": 1, "merged_into_name": 1},
     ).sort("name", 1).to_list(500)
     out = []
     for r in rows:
@@ -148,3 +159,151 @@ async def update_master_destination(dest_id: str, body: MasterDestinationUpdate,
                          f"{' (ops nonaktif)' if updates.get('ops_active') is False else ''}"
                          f" · cascade {sum(cascade.values())} dokumen")
     return {**dest, **updates, "cascade": cascade}
+
+
+@router.post("/master/destinations/{dest_id}/merge")
+async def merge_master_destination(dest_id: str, body: DestinationMergeRequest, user=Depends(MASTER)):
+    """GABUNG destinasi kembar (batch 5): seluruh booking/lead/penawaran SUMBER pindah ke
+    nama TARGET, lalu sumber di-nonaktifkan + ditandai `merged_into` (riwayat menyatu,
+    tidak ada data yang dihapus; halaman web publik target tidak berubah)."""
+    db = get_db()
+    if dest_id == body.target_id:
+        raise HTTPException(status_code=400, detail="Sumber dan target gabung tidak boleh sama")
+    source = await db.destinations.find_one({"id": dest_id, "deleted": {"$ne": True}}, {"_id": 0})
+    target = await db.destinations.find_one({"id": body.target_id, "deleted": {"$ne": True}}, {"_id": 0})
+    if not source or not target:
+        raise HTTPException(status_code=404, detail="Destinasi sumber/target tidak ditemukan")
+    if source.get("merged_into"):
+        raise HTTPException(status_code=400, detail="Destinasi ini sudah pernah digabung")
+    if target.get("merged_into") or target.get("ops_active") is False:
+        raise HTTPException(status_code=400, detail="Target gabung harus destinasi AKTIF (bukan hasil gabungan/nonaktif)")
+    src_name, tgt_name = _clean(source.get("name")), _clean(target.get("name"))
+    cascade = {"bookings": 0, "leads": 0, "quotations": 0}
+    for coll in ("bookings", "leads", "quotations"):
+        res = await db[coll].update_many({"destination": src_name}, {"$set": {"destination": tgt_name}})
+        cascade[coll] = res.modified_count
+    await db.destinations.update_one({"id": dest_id}, {"$set": {
+        "ops_active": False, "merged_into": target["id"], "merged_into_name": tgt_name,
+        "updated_at": now_iso()}})
+    await record(db, actor=user, action="update", entity_type="destination", entity_id=dest_id,
+                 summary=f"GABUNG destinasi: '{src_name}' → '{tgt_name}' "
+                         f"· cascade {sum(cascade.values())} dokumen")
+    return {"merged": True, "source": src_name, "target": tgt_name, "cascade": cascade}
+
+
+# ---------- KOTA (master utk customers.city & partners.city — INV-REF-02 batch 5) ----------
+@router.get("/cities")
+async def list_cities(user=Depends(CITIES)):
+    """Utk selector form pelanggan/mitra (hanya yang AKTIF). Kelola: GET /master/cities."""
+    rows = await get_db().cities.find(
+        {"deleted": {"$ne": True}, "active": {"$ne": False}},
+        {"_id": 0}).sort("name", 1).to_list(500)
+    return safe_doc(rows)
+
+
+@router.post("/cities")
+async def create_city(body: CityCreate, user=Depends(CITIES)):
+    """Quick-add master kota. Idempotent: nama yang sudah ada dikembalikan, bukan duplikat."""
+    db = get_db()
+    name = body.name.strip()
+    async for c in db.cities.find({"deleted": {"$ne": True}}, {"_id": 0}):
+        if _clean(c.get("name")).lower() == name.lower():
+            if c.get("active") is False:
+                await db.cities.update_one({"id": c["id"]}, {"$set": {"active": True}})
+                c["active"] = True
+            return safe_doc(c)
+    doc = {"id": new_id("cty"), "name": name, "active": True, "created_at": now_iso()}
+    await db.cities.insert_one(dict(doc))
+    await record(db, actor=user, action="create", entity_type="city",
+                 entity_id=doc["id"], summary=f"Kota baru: {name}")
+    return doc
+
+
+@router.get("/master/cities")
+async def master_cities(user=Depends(MASTER)):
+    """Kelola master kota: semua baris (termasuk nonaktif) + pemakaian pelanggan/mitra."""
+    db = get_db()
+    rows = await db.cities.find({"deleted": {"$ne": True}}, {"_id": 0}).sort("name", 1).to_list(500)
+    out = []
+    for r in rows:
+        nm = r.get("name")
+        used_c = await db.customers.count_documents({"city": nm})
+        used_p = await db.partners.count_documents({"city": nm})
+        out.append({**r, "active": r.get("active") is not False,
+                    "used_by_customers": used_c, "used_by_partners": used_p})
+    return safe_doc(out)
+
+
+@router.patch("/master/cities/{city_id}")
+async def update_master_city(city_id: str, body: MasterCityUpdate, user=Depends(MASTER)):
+    """Rename kota (CASCADE ke customers/partners) dan/atau aktif/nonaktif."""
+    db = get_db()
+    city = await db.cities.find_one({"id": city_id, "deleted": {"$ne": True}}, {"_id": 0})
+    if not city:
+        raise HTTPException(status_code=404, detail="Kota tidak ditemukan")
+    updates, cascade = {}, {"customers": 0, "partners": 0}
+    new_name = _clean(body.name) if body.name is not None else ""
+    old_name = _clean(city.get("name"))
+    if new_name and new_name != old_name:
+        if await _name_taken(db.cities, new_name, exclude_id=city_id):
+            raise HTTPException(status_code=400, detail=f"Nama '{new_name}' sudah dipakai kota lain")
+        updates["name"] = new_name
+        for coll in ("customers", "partners"):
+            res = await db[coll].update_many({"city": old_name}, {"$set": {"city": new_name}})
+            cascade[coll] = res.modified_count
+    if body.active is not None:
+        updates["active"] = bool(body.active)
+    if not updates:
+        return {**city, "cascade": cascade}
+    await db.cities.update_one({"id": city_id}, {"$set": updates})
+    await record(db, actor=user, action="update", entity_type="city", entity_id=city_id,
+                 summary=f"Master kota: {old_name} → {updates.get('name', old_name)}"
+                         f"{' (nonaktif)' if updates.get('active') is False else ''}"
+                         f" · cascade {sum(cascade.values())} dokumen")
+    return {**city, **updates, "cascade": cascade}
+
+
+# ---------- EKSPOR EXCEL (batch 5): seluruh master utk tim ops ----------
+@router.get("/master/export")
+async def master_export(user=Depends(MASTER)):
+    """Unduh seluruh master (titik jemput, destinasi, kota) sebagai satu berkas Excel."""
+    from openpyxl import Workbook
+    db = get_db()
+    wb = Workbook()
+
+    ws = wb.active
+    ws.title = "Titik Jemput"
+    ws.append(["Nama", "Aktif", "Dipakai (booking)"])
+    async for r in db.pickup_points.find({"deleted": {"$ne": True}}, {"_id": 0}).sort("name", 1):
+        used = await db.bookings.count_documents({"origin": r.get("name")})
+        ws.append([r.get("name"), "Ya" if r.get("active") is not False else "Tidak", used])
+
+    ws2 = wb.create_sheet("Destinasi")
+    ws2.append(["Nama", "Status Web", "Aktif (ops)", "Booking", "Lead", "Penawaran", "Digabung ke"])
+    async for r in db.destinations.find({"deleted": {"$ne": True}}, {"_id": 0}).sort("name", 1):
+        nm = r.get("name")
+        ws2.append([nm, r.get("status") or "-",
+                    "Ya" if r.get("ops_active") is not False else "Tidak",
+                    await db.bookings.count_documents({"destination": nm}),
+                    await db.leads.count_documents({"destination": nm}),
+                    await db.quotations.count_documents({"destination": nm}),
+                    r.get("merged_into_name") or "-"])
+
+    ws3 = wb.create_sheet("Kota")
+    ws3.append(["Nama", "Aktif", "Pelanggan", "Mitra"])
+    async for r in db.cities.find({"deleted": {"$ne": True}}, {"_id": 0}).sort("name", 1):
+        nm = r.get("name")
+        ws3.append([nm, "Ya" if r.get("active") is not False else "Tidak",
+                    await db.customers.count_documents({"city": nm}),
+                    await db.partners.count_documents({"city": nm})])
+
+    for sheet in wb.worksheets:
+        for col in sheet.columns:
+            width = max((len(str(c.value or "")) for c in col), default=8)
+            sheet.column_dimensions[col[0].column_letter].width = min(width + 3, 42)
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="master-data-rahazatrans.xlsx"'})

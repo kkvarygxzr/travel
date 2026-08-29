@@ -2,7 +2,21 @@
 
 > **Bahasa kerja: Indonesia.** Agent berikutnya WAJIB merespons user dalam Bahasa Indonesia.
 >
-> ## ✅ STATUS SESI TERAKHIR (2026-08-29, sesi 5 — SSOT BATCH 4 + PREVIEW CASCADE, TUNTAS)
+> ## ✅ STATUS SESI TERAKHIR (2026-08-29, sesi 6 — SSOT BATCH 5 + EKSPOR EXCEL + GABUNG DESTINASI, TUNTAS)
+> **BUG-0141**: (1) master KOTA baru `cities` (cty_) — `customers.city`/`partners.city` KERAS via
+> `refs.city_or_400` (create+update), quick-add `POST /api/cities`, FE `CitySelect` (cf-city/
+> pf-city), kelola `GET/PATCH /api/master/cities[/{id}]` (rename cascade customers+partners);
+> `vehicle_type` landing/booking publik LUNAK via `refs.vehicle_type_normalize`; (2) **ekspor
+> Excel** `GET /api/master/export` (3 sheet: Titik Jemput/Destinasi/Kota + pemakaian, tombol
+> `md-export-excel`); (3) **GABUNG destinasi kembar** `POST /api/master/destinations/{id}/merge`
+> (cascade 3 koleksi ke target; sumber nonaktif + `merged_into`; badge "Digabung →"; UNDO hanya
+> via DB — belum ada di UI). Registrasi `cities`: verify_schema, validate_compliance,
+> PURGE_COLLECTIONS, seed, `scripts/migrate_ssot_batch5.py`. Guard INV-REF-02 → **30 cek**.
+> Gate **HIJAU 46/46 0 FAIL 0 SKIP**; testing_agent **iteration_98 0 bug** (backend 19/19; suite
+> `backend/tests/backend_test_ssot_batch5.py`). ⚠ JANGAN jalankan `ruff check --fix backend/`
+> global — pernah merusak string patch selftest (Optional→`str|None`); lint hanya per-file baru.
+>
+> ## Riwayat sesi 5 (2026-08-29 — SSOT batch 4 + preview cascade)
 > **BUG-0140**: normalisasi LUNAK semua jalur tulis publik/inbound (`refs.origin_normalize` baru;
 > booking online + lead landing + lead ads kini menyimpan origin/destination KANONIK bila cocok
 > master, tetap menerima nilai di luar master); **Preview Cascade** di /app/masterdata (panel

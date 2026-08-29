@@ -89,6 +89,8 @@ PURGE_COLLECTIONS = (
     "subcharters", "partners", "partner_settlements", "driver_payouts", "maintenance_records",
     "segments", "sequences", "destinations", "packages", "articles", "testimonials",
     "transfer_routes", "service_types", "workshops", "promos", "landing_pages",
+    # INV-REF-02 batch 5: master kota — quick-add uji dari guard/testing wajib bisa dibersihkan.
+    "cities",
     # Bukti transfer DP (panel "Bukti Bayar" ops) + outbox konversi iklan.
     "payment_proofs",
     # Outbox konversi iklan: trafik penjaga ke endpoint publik ikut tercatat di sini dan

@@ -11,6 +11,7 @@ from db import get_db
 from dependencies import require_section
 from schemas_partner import PartnerCreate, PartnerUpdate, SettlementCreate
 from services.audit import record
+from services.refs import city_or_400
 from services.subcharter import enrich_partner, partner_ap
 
 router = APIRouter(prefix="/api", tags=["partners"])
@@ -34,7 +35,9 @@ async def create_partner(body: PartnerCreate, user=Depends(PARTNERS)):
     doc = {
         "id": new_id("ptn"), "name": body.name.strip(),
         "pic": (body.pic or "").strip(), "phone": (body.phone or "").strip(),
-        "email": (body.email or "").strip(), "city": (body.city or "").strip(),
+        "email": (body.email or "").strip(),
+        # INV-REF-02 batch 5: kota mitra = relasi master `cities` (nama kanonik).
+        "city": await city_or_400(db, body.city, field_label="Kota mitra"),
         "address": (body.address or "").strip(), "rating": float(body.rating or 0),
         "notes": body.notes or "", "status": body.status or "active", "created_at": now_iso(),
     }
@@ -69,6 +72,8 @@ async def update_partner(partner_id: str, body: PartnerUpdate, user=Depends(PART
     updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
     if "rating" in updates:
         updates["rating"] = float(updates["rating"])
+    if "city" in updates:
+        updates["city"] = await city_or_400(db, updates["city"], field_label="Kota mitra")
     if updates:
         await db.partners.update_one({"id": partner_id}, {"$set": updates})
     doc = await db.partners.find_one({"id": partner_id}, {"_id": 0})

@@ -36,6 +36,7 @@ PREFIX = {
     "invoices": "inv_", "notification_tasks": "ntf_", "broadcasts": "brd_",
     "maintenance_records": "mnt_", "destinations": "dst_", "articles": "art_",
     "pickup_points": "pkp_",
+    "cities": "cty_",
     "testimonials": "tst_", "lead_activities": "lac_", "trip_shares": "shr_",
     "quotations": "quo_", "packages": "pkg_", "promos": "pro_",
     "events": "evt_", "automation_rules": "aur_", "automation_runs": "arn_",

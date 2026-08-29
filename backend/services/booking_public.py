@@ -25,19 +25,27 @@ Prinsip yang dijaga:
 """
 from datetime import datetime, timedelta, timezone
 
+from core_utils import money, new_id, now_iso, safe_doc
 from pymongo.errors import DuplicateKeyError
 
-from core_utils import money, new_id, now_iso, safe_doc
 from services import booking_flow as bf
 from services import booking_search as bs
 from services import promos as promo_svc
-from services.availability import (find_conflicts, find_maintenance_conflicts, vehicle_lock)
+from services.availability import (
+    find_conflicts,
+    find_maintenance_conflicts,
+    vehicle_lock,
+)
 from services.counters import next_booking_code
 from services.events import emit
 from services.geo import parse_iso
 from services.identity import ensure_customer, normalize_phone
 from services.pricing import get_dp_percent, span_days
-from services.refs import destination_normalize, origin_normalize
+from services.refs import (
+    destination_normalize,
+    origin_normalize,
+    vehicle_type_normalize,
+)
 
 MAX_ADD_ONS = 6
 PROOF_MAX_BYTES = 5 * 1024 * 1024
@@ -200,8 +208,8 @@ async def create_booking(db, payload: dict, *, ip: str = "") -> dict:
         "payment_status": "belum_bayar", "status": status,
         "customer_name": customer.get("name"),
         "vehicle_name": (vehicle or {}).get("name"), "driver_name": None,
-        "requested_vehicle_type": (vehicle or {}).get("type") or str(
-            payload.get("vehicle_type") or "")[:40],
+        "requested_vehicle_type": (vehicle or {}).get("type") or vehicle_type_normalize(
+            str(payload.get("vehicle_type") or "")[:40]),
         "pax": int(money(payload.get("pax")) or 1),
         "service": service, "service_label": bf.service_meta(service)["label"],
         "route_id": (route or {}).get("id"), "route_name": (route or {}).get("name"),

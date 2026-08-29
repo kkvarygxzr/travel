@@ -88,7 +88,9 @@ async def run():
                    # dan tabel pengalihan menunjuk slug yang sudah lenyap.
                    "content_versions", "content_trash", "content_redirects",
                    # Pemesanan online publik (rute antar-jemput + bukti transfer pelanggan)
-                   "transfer_routes", "payment_proofs", "pickup_points"]
+                   "transfer_routes", "payment_proofs", "pickup_points",
+                   # INV-REF-02 batch 5: master kota (relasi customers.city & partners.city)
+                   "cities"]
     for c in COLLECTIONS:
         await db[c].delete_many({})
 
@@ -562,6 +564,12 @@ async def run():
         {"id": new_id("pkp"), "name": "Jakarta", "created_at": now_iso()},
         {"id": new_id("pkp"), "name": "Bandara Soekarno-Hatta", "created_at": now_iso()},
         {"id": new_id("pkp"), "name": "Stasiun Bandung", "created_at": now_iso()},
+    ])
+    await db.cities.insert_many([
+        # INV-REF-02 batch 5: master KOTA (relasi customers.city & partners.city).
+        # WAJIB mencakup semua nilai city yang dipakai seed customers/partners.
+        {"id": new_id("cty"), "name": n, "active": True, "created_at": now_iso()}
+        for n in ("Bandung", "Jakarta", "Cimahi", "Bekasi", "Bogor", "Surabaya")
     ])
     await db.destinations.insert_many([
         # INV-REF-02: destinasi OPERASIONAL (master utk booking ERP) — status 'draft' agar

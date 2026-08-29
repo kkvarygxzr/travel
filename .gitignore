@@ -106,3 +106,4 @@ frontend/node_modules/.cache/default-development/5.pack
 # MEDIA_BACKEND=objstore + EMERGENT_LLM_KEY (lihat services/media_store.py).
 backend/uploads/media/
 frontend/node_modules/.cache/default-development/11.pack
+frontend/node_modules/.cache/default-development/10.pack

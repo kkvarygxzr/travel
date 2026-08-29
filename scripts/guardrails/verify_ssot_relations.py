@@ -138,6 +138,29 @@ def static_checks(g: Guard):
     if "used_by_quotations" not in pk:
         g.add("routers/pickup_points.py: master destinasi tidak melaporkan `used_by_quotations` — "
               "preview cascade di Master Data buta terhadap penawaran.")
+    # --- batch 5: master KOTA (customers/partners), tipe armada landing, merge & ekspor ---
+    g.bump()
+    if "async def city_or_400" not in refs or "def vehicle_type_normalize" not in refs:
+        g.add("services/refs.py: `city_or_400` / `vehicle_type_normalize` HILANG — kota & tipe "
+              "armada kembali teks bebas.")
+    cust_src = read(BACKEND / "routers" / "customers.py")
+    g.bump()
+    if cust_src.count("city_or_400(") < 2:
+        g.add("routers/customers.py: `city_or_400` harus dipanggil di create & update — kota "
+              "pelanggan kembali teks bebas.")
+    ptn_src = read(BACKEND / "routers" / "partners.py")
+    g.bump()
+    if ptn_src.count("city_or_400(") < 2:
+        g.add("routers/partners.py: `city_or_400` harus dipanggil di create & update — kota "
+              "mitra kembali teks bebas.")
+    g.bump()
+    if "vehicle_type_normalize(" not in pub:
+        g.add("routers/public.py: lead landing menyimpan vehicle_type teks bebas tanpa "
+              "`vehicle_type_normalize` — filter/label tipe armada bercabang dari inbound.")
+    g.bump()
+    if "/master/cities" not in pk or "/merge" not in pk or "/master/export" not in pk:
+        g.add("routers/pickup_points.py: endpoint master kota / gabung destinasi / ekspor Excel "
+              "hilang — kelola master tidak lagi satu pintu.")
 
 
 def runtime_checks(g: Guard, tok: str):
@@ -240,6 +263,26 @@ def runtime_checks(g: Guard, tok: str):
                       f"(origin={bdoc.get('origin')!r}, destination={bdoc.get('destination')!r}) "
                       f"— seharusnya 'Bandung'/'Bali' (normalisasi lunak mati).")
             mclient.close()
+    # --- batch 5: kota ngawur di ERP → 400; selector kota tersedia ---
+    st8, data8 = jreq("POST", "/customers", tok,
+                      {"name": "Penjaga INV-REF-02 B5", "phone": "0800000551",
+                       "city": "KotaNgawur Penjaga INV-REF-02"})
+    g.bump()
+    if st8 == 400:
+        detail = str((data8 or {}).get("detail") or "").lower()
+        if "kota" not in detail and "master" not in detail:
+            g.add(f"Runtime: kota ngawur ditolak karena alasan LAIN ('{detail[:80]}') — "
+                  f"validasi master kota tidak terbukti bekerja.")
+    elif 200 <= st8 < 300:
+        g.add("Runtime: POST /customers MENERIMA kota di luar master (INV-REF-02 b5) — "
+              "dokumen uji dibersihkan.")
+    else:
+        g.add(f"Runtime: respons tak terduga HTTP {st8} untuk kota ngawur (harus 400).")
+    st9, ctys = jreq("GET", "/cities", tok)
+    g.bump()
+    if st9 != 200 or not isinstance(ctys, list) or not ctys:
+        g.add(f"Runtime: GET /cities gagal (HTTP {st9}) atau kosong — selector kota FE "
+              f"tak punya pilihan.")
 
 
 def main() -> int:

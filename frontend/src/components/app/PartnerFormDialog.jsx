@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import apiClient from "@/services/apiClient";
+import CitySelect from "@/components/app/CitySelect";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -67,7 +68,7 @@ export default function PartnerFormDialog({ open, onOpenChange, initial, onSaved
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5"><Label>Kota</Label>
-              <Input value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="Bandung" data-testid="pf-city" /></div>
+              <CitySelect value={form.city} onChange={(v) => set("city", v)} testId="pf-city" /></div>
             <div className="space-y-1.5"><Label>Rating (0-5)</Label>
               <Input type="number" step="0.1" min="0" max="5" value={form.rating} onChange={(e) => set("rating", e.target.value)} placeholder="4.6" data-testid="pf-rating" /></div>
           </div>
