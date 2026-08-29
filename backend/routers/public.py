@@ -24,7 +24,7 @@ from services import content_publish as cp
 from services import content_redirects as credirects
 from services import content_stats as cstats
 from services import i18n
-from services.refs import destination_normalize
+from services.refs import destination_normalize, origin_normalize
 from services import landing_stats
 from services import reviews as review_svc
 from services.crm import auto_assign_agent, log_activity
@@ -643,7 +643,7 @@ async def public_landing_lead(slug: str, body: LandingLeadCreate, request: Reque
     doc = {
         "id": new_id("led"), "customer_name": name, "phone": phone, "email": (body.email or "")[:160],
         "source": "landing_page", "stage": "new", "assigned_to": assigned,
-        "origin": (body.origin or "")[:200],
+        "origin": await origin_normalize(db, (body.origin or "")[:200]),
         "destination": await destination_normalize(db, (body.destination or "")[:200]),
         "trip_date": (body.start or None), "trip_end_date": (body.end or None),
         "pax": int(body.pax or 0), "vehicle_type": (body.vehicle_type or "")[:60],

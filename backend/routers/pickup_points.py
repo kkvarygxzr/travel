@@ -110,8 +110,10 @@ async def master_destinations(user=Depends(MASTER)):
         nm = r.get("name")
         used_b = await db.bookings.count_documents({"destination": nm})
         used_l = await db.leads.count_documents({"destination": nm})
+        used_q = await db.quotations.count_documents({"destination": nm})
         out.append({**r, "ops_active": r.get("ops_active") is not False,
-                    "used_by_bookings": used_b, "used_by_leads": used_l})
+                    "used_by_bookings": used_b, "used_by_leads": used_l,
+                    "used_by_quotations": used_q})
     return safe_doc(out)
 
 

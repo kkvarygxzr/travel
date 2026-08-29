@@ -190,3 +190,19 @@ async def destination_normalize(db, value):
         if str(d.get("name") or "").strip().lower() == low or str(d.get("slug") or "").strip().lower() == low:
             return str(d.get("name") or raw).strip()
     return raw
+
+
+async def origin_normalize(db, value):
+    """INV-REF-02 batch 4: normalisasi LUNAK titik jemput utk jalur PUBLIK/inbound
+    (pemesanan online, lead landing): cocok master `pickup_points` → nama kanonik;
+    tidak cocok → simpan apa adanya (pengunjung TIDAK BOLEH ditolak karena ejaan)."""
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    low = raw.lower()
+    rows = await db.pickup_points.find(
+        {"deleted": {"$ne": True}}, {"_id": 0, "name": 1}).to_list(500)
+    for p in rows:
+        if str(p.get("name") or "").strip().lower() == low:
+            return str(p.get("name")).strip()
+    return raw

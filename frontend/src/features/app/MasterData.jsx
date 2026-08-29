@@ -10,12 +10,21 @@ import { LoadingState, ErrorState } from "@/components/shared/DataStates";
 
 function Row({ row, kind, busy, onRename, onToggle }) {
   const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [name, setName] = useState(row.name || "");
   const active = kind === "pickup" ? row.active : row.ops_active;
   const usage = kind === "pickup"
     ? `${row.used_by_bookings} booking`
-    : `${row.used_by_bookings} booking · ${row.used_by_leads} lead`;
-  const save = () => { if (name.trim().length >= 2 && name.trim() !== row.name) onRename(row, name.trim()); setEditing(false); };
+    : `${row.used_by_bookings} booking · ${row.used_by_leads} lead · ${row.used_by_quotations || 0} penawaran`;
+  const totalUsed = kind === "pickup"
+    ? row.used_by_bookings || 0
+    : (row.used_by_bookings || 0) + (row.used_by_leads || 0) + (row.used_by_quotations || 0);
+  const save = () => {
+    const clean = name.trim();
+    if (clean.length < 2 || clean === row.name) { setEditing(false); setName(row.name); return; }
+    setConfirming(true);
+  };
+  const confirmRename = () => { onRename(row, name.trim()); setConfirming(false); setEditing(false); };
   return (
     <div className={`flex flex-wrap items-center gap-2 border-b border-[#F2F2F5] px-3 py-2.5 last:border-0 ${active ? "" : "opacity-55"}`}
       data-testid={`md-row-${row.id}`}>
@@ -25,7 +34,7 @@ function Row({ row, kind, busy, onRename, onToggle }) {
             <Input className="!h-8 max-w-[260px] text-[13px]" value={name} onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && save()} autoFocus data-testid={`md-rename-input-${row.id}`} />
             <button className="icon-button !h-8 !w-8" onClick={save} data-testid={`md-rename-save-${row.id}`}><Check size={14} /></button>
-            <button className="icon-button !h-8 !w-8" onClick={() => { setEditing(false); setName(row.name); }}><X size={14} /></button>
+            <button className="icon-button !h-8 !w-8" onClick={() => { setEditing(false); setConfirming(false); setName(row.name); }} data-testid={`md-rename-abort-${row.id}`}><X size={14} /></button>
           </div>
         ) : (
           <>
@@ -44,6 +53,21 @@ function Row({ row, kind, busy, onRename, onToggle }) {
         onClick={() => onToggle(row, !active)} data-testid={`md-toggle-${row.id}`}>
         <Power size={12} /> {active ? "Nonaktifkan" : "Aktifkan"}
       </button>
+      {confirming ? (
+        <div className="w-full rounded-lg border border-[#F5D08C] bg-[#FFF7E6] px-3 py-2 text-[12px] text-[#7A5A00]"
+          data-testid={`md-confirm-${row.id}`}>
+          Ganti "<b>{row.name}</b>" → "<b>{name.trim()}</b>"?{" "}
+          {totalUsed > 0
+            ? <>Ini akan ikut memperbarui <b>{usage}</b> yang memakai nama lama.</>
+            : <>Belum ada dokumen yang memakai nama ini — aman diganti.</>}
+          <div className="mt-1.5 flex gap-2">
+            <button className="primary-button !h-7 !px-3 !text-[11.5px]" disabled={busy}
+              onClick={confirmRename} data-testid={`md-rename-confirm-${row.id}`}>Ya, Ganti Nama</button>
+            <button className="secondary-button !h-7 !px-3 !text-[11.5px]"
+              onClick={() => setConfirming(false)} data-testid={`md-rename-cancel-${row.id}`}>Batal</button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

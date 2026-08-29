@@ -10,6 +10,7 @@ from core_utils import new_id, now_iso
 from services import attribution as attr
 from services.crm import auto_assign_agent, log_activity
 from services.events import emit
+from services.refs import destination_normalize
 
 logger = logging.getLogger("travel_fleet.ads")
 
@@ -99,7 +100,8 @@ async def create_ad_lead(db, provider, payload, *, ad_ids=None):
     doc = {
         "id": new_id("led"), "customer_name": parsed["name"], "phone": parsed["phone"],
         "phone_normalized": norm, "email": parsed["email"], "source": "ads", "stage": "new",
-        "assigned_to": assigned, "destination": parsed["destination"], "trip_date": None, "pax": 0,
+        "assigned_to": assigned, "trip_date": None, "pax": 0,
+        "destination": await destination_normalize(db, parsed["destination"]),
         "message": parsed["message"], "value": 0.0, "quotation_amount": 0,
         "converted_customer_id": None, "linked_customer_id": None,
         "marketing_consent": True, "consent_at": now,  # lead ads = consent eksplisit di form platform

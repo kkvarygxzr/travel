@@ -27,6 +27,28 @@
 
 ## REGISTRY
 
+### BUG-0140 — SSOT batch 4: jalur publik/inbound masih menulis origin/destination teks bebas + rename master tanpa preview — FIXED 2026-08-29
+- Tanggal       : 2026-08-29 (sesi 5, lanjutan seri RC-E)
+- Fase/Modul    : RC-E batch 4 / booking_public, landing lead, lead ads, Master Data
+- Gejala        : (a) pemesanan ONLINE menulis `bookings.origin/destination` apa adanya —
+                  koleksi yang sama dgn ERP yang sudah divalidasi master → nama bercabang
+                  kembali lewat pintu publik; (b) lead landing menyimpan `origin` mentah;
+                  (c) lead ads menyimpan `destination` mentah; (d) tombol "Ganti Nama" di
+                  Master Data langsung mengeksekusi cascade tanpa memberi tahu berapa
+                  dokumen yang ikut berubah.
+- Perbaikan     : (a) `services/refs.origin_normalize` BARU (lunak, vs master pickup_points);
+                  `booking_public.create_booking` menormalkan origin+destination;
+                  (b) `routers/public.py` landing lead → `origin_normalize`;
+                  (c) `services/ads.py` → `destination_normalize`;
+                  (d) `GET /master/destinations` + `used_by_quotations`; `MasterData.jsx`
+                  panel konfirmasi preview cascade (jumlah booking/lead/penawaran) sebelum
+                  rename, dgn testid `md-confirm-*`/`md-rename-confirm-*`/`md-rename-cancel-*`.
+                  Prinsip batch tetap: jalur PUBLIK = LUNAK (tidak menolak), jalur ERP = keras.
+- Regression    : INV-REF-02 diperluas +5 statik +1 runtime (probe /public/booking 'bandung'/
+                  'bali' → tersimpan 'Bandung'/'Bali', verifikasi langsung di DB) → 23 cek.
+- Status        : FIXED — verifikasi manual: ads 'bromo'→'Gunung Bromo', landing
+                  'bandung'/'yogyakarta'→kanonik, guard PASS 23; gate + testing_agent di sesi ini.
+
 ### BUG-0138 — SSOT batch 3 + Master Data + Lead→Booking — FIXED & TUNTAS 2026-08-29 (sesi 4: gate 46/46 HIJAU + testing_agent iteration_96 0 bug)
 - Tanggal       : 2026-08-29
 - Fase/Modul    : RC-E batch 3 / quotations.destination, form penawaran publik, halaman Master Data, konversi lead

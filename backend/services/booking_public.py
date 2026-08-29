@@ -37,6 +37,7 @@ from services.events import emit
 from services.geo import parse_iso
 from services.identity import ensure_customer, normalize_phone
 from services.pricing import get_dp_percent, span_days
+from services.refs import destination_normalize, origin_normalize
 
 MAX_ADD_ONS = 6
 PROOF_MAX_BYTES = 5 * 1024 * 1024
@@ -192,8 +193,8 @@ async def create_booking(db, payload: dict, *, ip: str = "") -> dict:
         "id": new_id("bk"), "code": await next_booking_code(db),
         "customer_id": customer["id"],
         "vehicle_id": (vehicle or {}).get("id"), "driver_id": None,
-        "origin": str(payload.get("origin") or (route or {}).get("from_label") or "")[:160],
-        "destination": str(payload.get("destination") or (route or {}).get("to_label") or "")[:160],
+        "origin": await origin_normalize(db, str(payload.get("origin") or (route or {}).get("from_label") or "")[:160]),
+        "destination": await destination_normalize(db, str(payload.get("destination") or (route or {}).get("to_label") or "")[:160]),
         "start_datetime": start_iso, "end_datetime": end_iso,
         "base_price": total, "add_ons": [], "total_amount": total, "paid_amount": 0,
         "payment_status": "belum_bayar", "status": status,

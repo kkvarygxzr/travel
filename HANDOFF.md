@@ -2,7 +2,18 @@
 
 > **Bahasa kerja: Indonesia.** Agent berikutnya WAJIB merespons user dalam Bahasa Indonesia.
 >
-> ## ✅ STATUS SESI TERAKHIR (2026-08-29, sesi 4 — RITUAL BATCH 3 TUNTAS)
+> ## ✅ STATUS SESI TERAKHIR (2026-08-29, sesi 5 — SSOT BATCH 4 + PREVIEW CASCADE, TUNTAS)
+> **BUG-0140**: normalisasi LUNAK semua jalur tulis publik/inbound (`refs.origin_normalize` baru;
+> booking online + lead landing + lead ads kini menyimpan origin/destination KANONIK bila cocok
+> master, tetap menerima nilai di luar master); **Preview Cascade** di /app/masterdata (panel
+> konfirmasi ber-jumlah booking/lead/penawaran sebelum rename, testid `md-confirm-*`/
+> `md-rename-confirm-*`/`md-rename-cancel-*`/`md-rename-abort-*`; master destinasi +
+> `used_by_quotations`). Guard INV-REF-02 → **23 cek** (+ probe runtime baca DB). Gate **HIJAU
+> 46/46 0 FAIL 0 SKIP**; testing_agent **iteration_97 0 bug** (backend 7/7, frontend 2/2; suite
+> `backend/tests/backend_test_ssot_batch4.py`). Kandidat batch 5: `vehicle_type` lead landing,
+> kota customers/partners/workshops.
+>
+> ## Riwayat sesi 4 (2026-08-29 — ritual penutup batch 3)
 > Sesi 4 menuntaskan ritual penutup batch 3: `bash scripts/gate.sh` **HIJAU penuh 46 PASS
 > 0 FAIL 0 SKIP**, testing_agent **iteration_96 0 bug** (backend 15/15, frontend 4/4),
 > `memory/INVARIANTS.md` (INV-REF-02 batch 3) & `memory/PRD.md` diperbarui. Dalam prosesnya

@@ -24,7 +24,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(__file__))
-from _common import BACKEND, Guard, purge_guard_bookings  # noqa: E402
+from _common import BACKEND, Guard, mongo_db, purge_guard_bookings  # noqa: E402
 
 BASE = "http://localhost:8001/api"
 REFS = BACKEND / "services" / "refs.py"
@@ -116,6 +116,28 @@ def static_checks(g: Guard):
     if "/master/pickup-points" not in pk or "/master/destinations" not in pk or "update_many" not in pk:
         g.add("routers/pickup_points.py: halaman kelola master (rename CASCADE via update_many + "
               "toggle aktif) hilang — rename master tidak lagi menyeret dokumen pemakai → nama bercabang.")
+    # --- batch 4: normalisasi LUNAK seluruh jalur tulis publik/inbound + preview cascade ---
+    g.bump()
+    if "async def origin_normalize" not in refs:
+        g.add("services/refs.py: `origin_normalize` HILANG — titik jemput inbound publik "
+              "tidak dikanonikkan lagi.")
+    bp_src = read(BACKEND / "services" / "booking_public.py")
+    g.bump()
+    if "destination_normalize(" not in bp_src or "origin_normalize(" not in bp_src:
+        g.add("services/booking_public.py: pemesanan online tidak menormalkan origin/destination "
+              "— booking publik menulis teks bebas ke koleksi yang SAMA dgn ERP (nama bercabang lagi).")
+    g.bump()
+    if "origin_normalize(" not in pub:
+        g.add("routers/public.py: lead landing menyimpan origin teks bebas tanpa `origin_normalize`.")
+    ads_src = read(BACKEND / "services" / "ads.py")
+    g.bump()
+    if "destination_normalize(" not in ads_src:
+        g.add("services/ads.py: lead ads menyimpan destination teks bebas tanpa "
+              "`destination_normalize` — laporan per-destinasi bercabang dari inbound iklan.")
+    g.bump()
+    if "used_by_quotations" not in pk:
+        g.add("routers/pickup_points.py: master destinasi tidak melaporkan `used_by_quotations` — "
+              "preview cascade di Master Data buta terhadap penawaran.")
 
 
 def runtime_checks(g: Guard, tok: str):
@@ -197,6 +219,27 @@ def runtime_checks(g: Guard, tok: str):
     if st7 != 200 or not isinstance(popts, list) or not popts:
         g.add(f"Runtime: GET /public/destination-options gagal (HTTP {st7}) atau kosong — "
               f"form penawaran publik tak punya pilihan master.")
+    # --- batch 4: normalisasi lunak jalur publik TERBUKTI di dokumen tersimpan ---
+    stb, datab = jreq("POST", "/public/booking", body={
+        "name": "Penjaga INV-REF-02 B4", "phone": "0800000441",
+        "origin": "bandung", "destination": "bali", "pax": 2,
+        "start_datetime": start.isoformat(), "end_datetime": end.isoformat(),
+        "message": "Penjaga INV-REF-02 batch 4 (normalisasi publik)"})
+    g.bump()
+    if not (200 <= stb < 300):
+        g.add(f"Runtime: POST /public/booking probe normalisasi gagal HTTP {stb} — jalur publik "
+              f"menolak input warisan (harus LUNAK, bukan ditolak).")
+    else:
+        mdb, mclient = mongo_db()
+        if mdb is None:
+            g.add("Runtime: tidak bisa membaca DB utk memverifikasi normalisasi tersimpan.")
+        else:
+            bdoc = mdb["bookings"].find_one({"id": (datab or {}).get("id")}) or {}
+            if bdoc.get("destination") != "Bali" or bdoc.get("origin") != "Bandung":
+                g.add(f"Runtime: booking publik tersimpan TANPA nama kanonik "
+                      f"(origin={bdoc.get('origin')!r}, destination={bdoc.get('destination')!r}) "
+                      f"— seharusnya 'Bandung'/'Bali' (normalisasi lunak mati).")
+            mclient.close()
 
 
 def main() -> int:

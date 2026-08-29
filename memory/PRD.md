@@ -58,15 +58,26 @@ Owner (kontrol penuh + Pengaturan/Master Harga), Ops Admin (booking/dispatch), M
   Verifikasi: gate HIJAU penuh **46 PASS 0 FAIL 0 SKIP**; testing_agent iteration_96
   backend 15/15 + frontend 4/4, 0 bug (suite: backend/tests/backend_test_ssot_batch3.py).
 
+- **RC-E batch 4 + Preview Cascade (2026-08-29 sesi 5, BUG-0140 — TUNTAS)**: normalisasi LUNAK
+  menutup semua jalur tulis publik/inbound — `refs.origin_normalize` BARU; pemesanan online
+  (`booking_public.create_booking`) menormalkan origin+destination; lead landing menormalkan
+  origin; lead ads menormalkan destination (cocok master → kanonik, di luar master → diterima
+  apa adanya). **Preview Cascade** di /app/masterdata: panel konfirmasi menampilkan jumlah
+  booking/lead/penawaran yang ikut berubah SEBELUM rename (`md-confirm-*`); master destinasi
+  kini melaporkan `used_by_quotations`. Guard INV-REF-02 → 23 cek (+5 statik, +1 runtime probe
+  DB). Verifikasi: gate HIJAU 46/46; testing_agent iteration_97 backend 7/7 + frontend 2/2,
+  0 bug (suite: backend/tests/backend_test_ssot_batch4.py).
+
 ## Backlog Terprioritisasi
-- **P1 — RC-E batch 4**: sisa field free-text kandidat relasi (kategori/label lain hasil audit)
-  — bertahap per field + gate + testing_agent
+- **P1 — RC-E batch 5**: sisa field free-text kandidat relasi (mis. `vehicle_type` pada lead
+  landing, kota pada customers/partners/workshops) — bertahap per field + gate + testing_agent
 - **P2**: kredensial nyata Meta/Google/WA/GA4 (menunggu user); migrasi media ke objstore
   (MEDIA_BACKEND masih local); load test (setelah integritas data beres)
 - **P2**: batas/anggaran harga per tipe di Master Harga (saran reviewer: sudah ada cap 100 jt/unit)
 - **P3 (rapikan terpisah)**: INFO check_nav_map — menu 'users' & 'vehicles' belum punya PAGE_META
-  (bukan regresi); preview jumlah cascade sebelum rename di MasterData.jsx (saran reviewer iter_96)
+  (bukan regresi); TTL cache utk `refs.*_normalize` & aggregation `$facet` utk usage count
+  Master Data (saran reviewer iter_97, skala sekarang aman)
 
 ## Next Tasks
-1. RC-E batch 4 (field berikutnya sesuai temuan audit)
+1. RC-E batch 5 (field berikutnya sesuai temuan audit)
 2. Keputusan user: data produksi / kredensial integrasi nyata
